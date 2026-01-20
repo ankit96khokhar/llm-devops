@@ -230,12 +230,6 @@ spec:
               key: ARGOCD_TOKEN
               optional: true
         
-        volumeMounts:
-        - name: config
-          mountPath: /app/config
-        - name: app-code
-          mountPath: /app
-        
         resources:
           requests:
             memory: "256Mi"
@@ -262,14 +256,7 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
       
-      volumes:
-      - name: config
-        configMap:
-          name: llm-incident-response-config
-      - name: app-code
-        configMap:
-          name: llm-incident-response-code
-          defaultMode: 0755
+      restartPolicy: Always
 ---
 apiVersion: v1
 kind: Service
