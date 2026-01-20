@@ -1,0 +1,322 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-incident-response
+  labels:
+    app: llm-incident-response
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-incident-response
+  namespace: llm-incident-response
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: llm-incident-response
+rules:
+# Pod and deployment management
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "events", "services", "endpoints"]
+  verbs: ["get", "list", "watch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+# Node management for advanced scenarios
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+# Metrics (if metrics-server is available)
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+# ConfigMaps and Secrets (for configuration updates)
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "patch", "update"]
+# HPA management
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: llm-incident-response
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: llm-incident-response
+subjects:
+- kind: ServiceAccount
+  name: llm-incident-response
+  namespace: llm-incident-response
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-incident-response-config
+  namespace: llm-incident-response
+data:
+  config.yaml: |
+    # LLM Incident Response Configuration
+    
+    # Monitoring settings
+    monitoring:
+      scan_interval: 60  # seconds
+      max_concurrent_actions: 3
+      confidence_threshold: 0.6
+      
+    # Incident detection rules
+    detection:
+      pod_restart_threshold: 5
+      pending_timeout_minutes: 5
+      memory_threshold_mb: 1000
+      cpu_threshold_percent: 90
+      
+    # Remediation settings
+    remediation:
+      enable_pod_restart: true
+      enable_scaling: true
+      enable_rollback: true
+      max_scale_replicas: 10
+      min_scale_replicas: 1
+      
+    # ArgoCD integration
+    argocd:
+      enabled: true
+      server_url: "https://argocd-server.argocd.svc.cluster.local"
+      verify_ssl: false
+      
+    # Safety settings
+    safety:
+      dry_run: false
+      excluded_namespaces: 
+        - kube-system
+        - kube-public
+        - kube-node-lease
+      critical_apps:
+        - coredns
+        - kube-proxy
+        - metrics-server
+        
+    # Alerting
+    alerting:
+      enabled: true
+      webhook_url: ""  # Slack/Teams webhook for notifications
+      
+    # Logging
+    logging:
+      level: INFO
+      format: json
+  
+  prompts.yaml: |
+    # LLM Prompts for different incident types
+    
+    system_prompt: |
+      You are an expert Kubernetes Site Reliability Engineer with deep knowledge of:
+      - Kubernetes architecture and common failure patterns
+      - Container orchestration and debugging
+      - Production incident response and remediation
+      - Cloud-native application patterns
+
+      Your role is to analyze Kubernetes incidents and provide specific, actionable remediation plans.
+
+      Guidelines:
+      1. Analyze the provided incident data thoroughly
+      2. Consider both immediate fixes and root cause resolution
+      3. Prioritize safety and minimal disruption
+      4. Provide confidence scores for your recommendations
+      5. Always explain your reasoning
+      6. Consider the severity and potential impact
+
+    pod_analysis_prompt: |
+      Analyze this pod incident:
+      
+      Pod: {pod_name} in namespace {namespace}
+      Status: {status}
+      Restart Count: {restart_count}
+      
+      Recent Logs:
+      {logs}
+      
+      Recent Events:
+      {events}
+      
+      Metrics:
+      {metrics}
+      
+      Provide a remediation plan in JSON format with:
+      - action: one of [restart_pod, scale_up, scale_down, rollback_deployment, update_config, no_action]
+      - parameters: action-specific parameters
+      - reasoning: detailed explanation
+      - confidence_score: 0.0-1.0
+      - estimated_impact: description of expected impact
+      
+    deployment_analysis_prompt: |
+      Analyze this deployment incident:
+      
+      Deployment: {deployment_name} in namespace {namespace}
+      Desired Replicas: {desired_replicas}
+      Ready Replicas: {ready_replicas}
+      
+      Recent Events:
+      {events}
+      
+      Pod Issues:
+      {pod_issues}
+      
+      Provide a remediation plan following the same JSON format as above.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: llm-incident-response-secrets
+  namespace: llm-incident-response
+type: Opaque
+data:
+  # Base64 encoded secrets
+  # To set: echo -n "your-openai-key" | base64
+  OPENAI_API_KEY: ""  # Add your base64 encoded OpenAI API key
+  ARGOCD_USERNAME: YWRtaW4=  # admin
+  ARGOCD_PASSWORD: ""  # Add your base64 encoded ArgoCD password
+  ARGOCD_TOKEN: ""  # Optional: ArgoCD token instead of username/password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-incident-response
+  namespace: llm-incident-response
+  labels:
+    app: llm-incident-response
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-incident-response
+  template:
+    metadata:
+      labels:
+        app: llm-incident-response
+    spec:
+      serviceAccountName: llm-incident-response
+      containers:
+      - name: incident-analyzer
+        image: python:3.11-slim
+        command: ["/bin/bash"]
+        args: 
+        - -c
+        - |
+          # Install dependencies
+          pip install --no-cache-dir \
+            kubernetes==28.1.0 \
+            openai==1.6.1 \
+            requests==2.31.0 \
+            pyyaml==6.0.1 \
+            aiohttp==3.9.1
+          
+          # Copy application code (in real deployment, this would be baked into image)
+          mkdir -p /app
+          
+          # Start the application
+          cd /app && python incident_analyzer.py
+        
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-incident-response-secrets
+              key: OPENAI_API_KEY
+        - name: ARGOCD_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: llm-incident-response-secrets
+              key: ARGOCD_USERNAME
+        - name: ARGOCD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: llm-incident-response-secrets
+              key: ARGOCD_PASSWORD
+        - name: ARGOCD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-incident-response-secrets
+              key: ARGOCD_TOKEN
+              optional: true
+        
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+        - name: app-code
+          mountPath: /app
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+            
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      
+      volumes:
+      - name: config
+        configMap:
+          name: llm-incident-response-config
+      - name: app-code
+        configMap:
+          name: llm-incident-response-code
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-incident-response
+  namespace: llm-incident-response
+  labels:
+    app: llm-incident-response
+spec:
+  selector:
+    app: llm-incident-response
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+# ConfigMap containing the application code
+# In production, this would be built into a container image
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-incident-response-code
+  namespace: llm-incident-response
+data:
+  incident_analyzer.py: |
+    # This would contain the incident_analyzer.py code
+    # For now, it's a placeholder - in real deployment, build proper container image
+    import time
+    print("LLM Incident Response System Starting...")
+    print("In production, build proper container image with the code")
+    while True:
+        time.sleep(60)
+        print("Monitoring for incidents...")
