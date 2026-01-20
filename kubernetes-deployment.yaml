@@ -203,24 +203,9 @@ spec:
       serviceAccountName: llm-incident-response
       containers:
       - name: incident-analyzer
-        image: python:3.11-slim
-        command: ["/bin/bash"]
-        args: 
-        - -c
-        - |
-          # Install dependencies
-          pip install --no-cache-dir \
-            kubernetes==28.1.0 \
-            openai==1.6.1 \
-            requests==2.31.0 \
-            pyyaml==6.0.1 \
-            aiohttp==3.9.1
-          
-          # Copy application code (in real deployment, this would be baked into image)
-          mkdir -p /app
-          
-          # Start the application
-          cd /app && python incident_analyzer.py
+        image: llm-incident-response:latest
+        imagePullPolicy: Never
+        command: ["python", "incident_analyzer.py"]
         
         env:
         - name: OPENAI_API_KEY
