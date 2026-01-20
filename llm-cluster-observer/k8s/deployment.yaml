@@ -1,0 +1,21 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-cluster-observer
+  namespace: llm-incident-response
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-cluster-observer
+  template:
+    metadata:
+      labels:
+        app: llm-cluster-observer
+    spec:
+      serviceAccountName: llm-incident-response
+      containers:
+      - name: observer
+        image: llm-cluster-observer:latest
+        imagePullPolicy: IfNotPresent

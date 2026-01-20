@@ -8,23 +8,20 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: llm-incident-response-role
+  name: llm-cluster-observer-role
 rules:
 - apiGroups: [""]
-  resources: ["pods", "events"]
-  verbs: ["get", "list", "watch", "delete"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "replicasets"]
-  verbs: ["get", "list", "watch", "patch"]
+  resources: ["pods", "pods/log", "events"]
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: llm-incident-response-binding
+  name: llm-cluster-observer-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: llm-incident-response-role
+  name: llm-cluster-observer-role
 subjects:
 - kind: ServiceAccount
   name: llm-incident-response
